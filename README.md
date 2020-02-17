@@ -63,6 +63,8 @@
   - `update_info.json`----按照前文方法编辑
   - `file_list.json`----游戏文件hash列表，由更新器自动生成
 
-然后，克隆这个git仓库，**修改`AutoUpdater.go`中的常量`resourceURL`为你的文件服务器地址**，保存
+然后，克隆这个git仓库，**修改`AutoUpdater.go`中的常量`resourceURL`为你的文件服务器地址**，保存，例如：
 
-确保你安装了go的编译器，（我是在1.13.5版本下编译通过的），然后运行build.bat或自行编译即可获得更新器，无需安装额外的包
+`const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"`**末尾有斜杠**
+
+最后，确保你安装了go的编译器，（我是在1.13.5版本下编译通过的），运行build.bat或自行编译即可获得更新器，无需安装额外的包
