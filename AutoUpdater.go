@@ -203,10 +203,9 @@ func DownLoadFileAndCheck(url, destDir, hash string) error {
 }
 
 type updateInfo struct {
-	GameVersion    int      `json:"version"`
-	UpdaterVersion int      `json:"updater_version"`
-	ResourceURL    string   `json:"resource_url"`
-	IgnoreList     []string `json:"ignore_list"`
+	GameVersion int      `json:"version"`
+	ResourceURL string   `json:"resource_url"`
+	IgnoreList  []string `json:"ignore_list"`
 }
 
 //返回的是json形式的表达
@@ -363,10 +362,6 @@ func AutoUpdate(repair bool) {
 		}
 	} else {
 		localUpdateInfo = updateInfo{ResourceURL: resourceURL}
-	}
-	if localUpdateInfo.UpdaterVersion < newUpdateInfo.UpdaterVersion {
-		fmt.Println("更新器版本过旧，请及时下载新版本更新器,若是第一次更新请忽略该消息")
-		//time.Sleep(time.Duration(5000000000))
 	}
 	if localUpdateInfo.GameVersion < newUpdateInfo.GameVersion || repair { //版本旧了的话就更新
 		if repair {
