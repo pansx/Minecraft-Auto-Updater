@@ -2,5 +2,7 @@
 build/
 game/
 package/
+download/
 rubbish/
 Updater_*
+update_info.json

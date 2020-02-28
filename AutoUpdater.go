@@ -203,9 +203,9 @@ func DownLoadFileAndCheck(url, destDir, hash string) error {
 }
 
 type updateInfo struct {
-	GameVersion int      `json:"version"`
-	ResourceURL string   `json:"resource_url"`
-	IgnoreList  []string `json:"ignore_list"`
+	GameVersion       int      `json:"version"`
+	IgnoreList        []string `json:"ignore_list"`
+	PackageIgnoreList []string `json:"package_ignore_list"`
 }
 
 //返回的是json形式的表达
@@ -296,11 +296,15 @@ func CompareFileList(localFileList, newFileList *map[string]string) (surp, lack 
 }
 
 //IgnoreFileInFileList 用于排除不需要检测更新的文件或文件夹
-func IgnoreFileInFileList(ignoreList *[]string, fileLists []*map[string]string) {
+func IgnoreFileInFileList(ignoreList *[]string, fileLists []*map[string]string, norm bool) {
 	var normIgnoreList []string
 	for i := range *ignoreList {
 		//(*ignoreList)[i] = filepath.FromSlash((*ignoreList)[i])
-		normIgnoreList = append(normIgnoreList, filepath.FromSlash((*ignoreList)[i]))
+		if norm {
+			normIgnoreList = append(normIgnoreList, filepath.FromSlash((*ignoreList)[i]))
+		} else {
+			normIgnoreList = append(normIgnoreList, (*ignoreList)[i])
+		}
 	} //规范化
 	for _, fileList := range fileLists {
 		del := make([]string, len(normIgnoreList))
@@ -361,7 +365,7 @@ func AutoUpdate(repair bool) {
 			}
 		}
 	} else {
-		localUpdateInfo = updateInfo{ResourceURL: resourceURL}
+		localUpdateInfo = updateInfo{}
 	}
 	if localUpdateInfo.GameVersion < newUpdateInfo.GameVersion || repair { //版本旧了的话就更新
 		if repair {
@@ -389,7 +393,7 @@ func AutoUpdate(repair bool) {
 		fmt.Println("对比文件差异中")
 		surp, lack := CompareFileList(localFileList, newFileList)
 		if !repair {
-			IgnoreFileInFileList(&newUpdateInfo.IgnoreList, []*map[string]string{surp, lack})
+			IgnoreFileInFileList(&newUpdateInfo.IgnoreList, []*map[string]string{surp, lack}, true)
 		}
 		for k := range *surp {
 			fmt.Println("多余文件：" + k)
@@ -466,20 +470,67 @@ func AutoUpdate(repair bool) {
 	}
 }
 
-//Pack 制作更新包
-func Pack() {
+//Pack 制作更新包如果 init用于表明是否是第一次打包，如果不是，更新器就会从服务端获取旧文件列表
+func Pack(init bool) {
 	fmt.Println("开始制作更新包")
+	os.RemoveAll(filepath.Join("package", "download"))
 	os.MkdirAll(filepath.Join("package", "download"), os.ModePerm)
 	fileList := GetFileList("game")
+	fileList = ToSlashFilelist(fileList)
 	fmt.Println("已获得文件列表")
+	if init {
+		var initUpdateInfo updateInfo
+		initUpdateInfo.GameVersion = 0
+		initUpdateInfo.IgnoreList = []string{}
+		initUpdateInfo.PackageIgnoreList = []string{}
+		initUpdInfoJSON, _ := json.Marshal(initUpdateInfo)
+		WriteStringToFile(filepath.Join("package", "update_info.json"), string(initUpdInfoJSON))
+		fileListJSON, _ := json.Marshal(ToSlashFilelist(fileList))
+		WriteStringToFile(filepath.Join("package", "file_list.json"), string(fileListJSON))
+		println("初始化已完成，请将完善后的update_info.json和file_list.json上传到文件服务器，然后再进行打包")
+		return
+	}
+	var newUpdateInfo updateInfo
+	err := newUpdateInfo.LoadFromJSON(ReadStringFromURL(resourceURL + "update_info.json"))
+	if err != nil {
+		fmt.Println("读取更新信息时出错，是不是忘了初始化文件服务器？输入--init以获取初始化所需的文件，输入--help获取更多帮助")
+		return
+	}
+	newUpdateInfo.GameVersion++ //自动修改游戏版本
+	_ = os.Remove(filepath.Join("package", "update_info.json"))
+	newUpdateInfoJSON, _ := json.Marshal(newUpdateInfo)
+	WriteStringToFile(filepath.Join("package", "update_info.json"), string(newUpdateInfoJSON)) //写入修改了游戏版本的更新信息文件
+	oldFileList := GetFileListFromJSON(ReadStringFromURL(resourceURL + "file_list.json"))      //服务器上的文件列表
+	oldFileList = ToSlashFilelist(oldFileList)
+	IgnoreFileInFileList(&newUpdateInfo.PackageIgnoreList, []*map[string]string{fileList, oldFileList}, false) //有一些文件不打包
+	surp, _ := CompareFileList(fileList, oldFileList)                                                          //多出来的文件要另外打包
+	os.RemoveAll(filepath.Join("package", "download_surp"))
+	os.MkdirAll(filepath.Join("package", "download_surp"), os.ModePerm)
+	nFiles := len(*surp)
+	if nFiles != 0 {
+		c := make(chan int)
+		for k, v := range *surp {
+			go func(path, hash string) {
+				Zip(path, filepath.Join("package", "download_surp", hash+".zip"))
+				fmt.Println("已压缩增量部分：" + path)
+				c <- 0
+			}(k, v)
+		}
+		for range c {
+			nFiles--
+			if nFiles == 0 {
+				close(c)
+			}
+		}
+	}
+	os.Remove(filepath.Join("package", "file_list.json"))
 	fileListJSON, _ := json.Marshal(ToSlashFilelist(fileList))
 	WriteStringToFile(filepath.Join("package", "file_list.json"), string(fileListJSON))
 	fmt.Println("已写入文件列表")
-	nFiles := len(*fileList)
+	nFiles = len(*fileList)
 	c := make(chan int)
 	for k, v := range *fileList {
 		go func(path, hash string) {
-			os.Remove(filepath.Join("package", "download", hash+".zip"))
 			Zip(path, filepath.Join("package", "download", hash+".zip"))
 			fmt.Println("已压缩：" + path)
 			c <- 0
@@ -491,7 +542,7 @@ func Pack() {
 			close(c)
 		}
 	}
-	fmt.Println("制包完毕，记得更新update_info.json中的版本号")
+	fmt.Println("制包完毕，请上传更新后的文件\n你可以选择删除原来的包后上传全量包以节省空间，也可以上传增量包以节省上传时间")
 }
 
 //Repair 游戏文件修复
@@ -514,13 +565,19 @@ func main() {
 	}
 	if len(os.Args) > 1 {
 		if os.Args[1] == "--help" {
-			fmt.Println("--help    获取帮助\n--pack    制作更新包\n--repair  游戏文件修复模式\n不附加参数即为自动模式")
+			fmt.Println("--help    获取帮助\n--init    初次制作更新包\n--pack    制作更新包\n--repair  游戏文件修复模式\n不附加参数即为自动模式")
 		}
 		if os.Args[1] == "--pack" {
-			Pack()
+			Pack(false)
+		}
+		if os.Args[1] == "--init" {
+			Pack(true)
 		}
 		if os.Args[1] == "--repair" {
 			Repair()
+		}
+		if os.Args[1] == "--debug" {
+			AutoUpdate(true)
 		}
 		os.Exit(0)
 	}
