@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"
@@ -206,6 +207,7 @@ type updateInfo struct {
 	GameVersion       int      `json:"version"`
 	IgnoreList        []string `json:"ignore_list"`
 	PackageIgnoreList []string `json:"package_ignore_list"`
+	//CommandToRun      string   `json:"command_to_run"`
 }
 
 //返回的是json形式的表达
@@ -464,9 +466,23 @@ func AutoUpdate(repair bool) {
 		fmt.Printf("更新完毕，%d成功，%d失败\n", succeed, failed)
 		if failed == 0 {
 			WriteStringToFile("update_info.json", newUpdateInfo.String())
+			/*
+				_, err := exec.LookPath("java")
+				if err != nil {
+					fmt.Println("你可能没安装java")
+					time.Sleep(60 * time.Second)
+					return
+				}
+				exec.Command(newUpdateInfo.CommandToRun).Run()
+				return
+			*/
+			return
 		}
+		fmt.Println("更新失败，请重新运行更新器")
+		time.Sleep(60 * time.Second)
 	} else {
 		fmt.Println("已是最新版，如需修复游戏文件请附加参数--repair")
+		//exec.Command(newUpdateInfo.CommandToRun).Run()
 	}
 }
 
