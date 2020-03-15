@@ -52,7 +52,7 @@ func Zip(srcFile string, destZip string) error {
 			}
 			header.Name = strings.TrimPrefix(path, filepath.Dir(srcFile)+sig)
 		*/
-		header.Name = strings.TrimPrefix(path, filepath.FromSlash(filepath.ToSlash(filepath.Dir(srcFile)+"/")))
+		//header.Name = strings.TrimPrefix(path, filepath.FromSlash(filepath.ToSlash(filepath.Dir(srcFile)+"/")))
 		//header.Name = path
 		if info.IsDir() {
 			//header.Name += sig
