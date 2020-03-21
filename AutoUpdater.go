@@ -353,7 +353,7 @@ func LaunchGameLauncher() {
 	fmt.Println("正在启动游戏启动器")
 	cmd := exec.Command("java", "-jar", "launcher.jar")
 	cmd.Dir = "./game"
-	cmd.Stdout = os.Stdout
+	//cmd.Stdout = os.Stdout
 	cmd.Run()
 }
 
@@ -476,23 +476,14 @@ func AutoUpdate(repair bool) {
 		fmt.Printf("更新完毕，%d成功，%d失败\n", succeed, failed)
 		if failed == 0 {
 			WriteStringToFile("update_info.json", newUpdateInfo.String())
-			/*
-				_, err := exec.LookPath("java")
-				if err != nil {
-					fmt.Println("你可能没安装java")
-					time.Sleep(60 * time.Second)
-					return
-				}
-				exec.Command(newUpdateInfo.CommandToRun).Run()
-				return
-			*/
+			LaunchGameLauncher()
 			return
 		}
 		fmt.Println("更新失败，请重新运行更新器")
 		time.Sleep(60 * time.Second)
 	} else {
 		fmt.Println("已是最新版，如需修复游戏文件请附加参数--repair")
-		//exec.Command(newUpdateInfo.CommandToRun).Run()
+		LaunchGameLauncher()
 	}
 }
 
