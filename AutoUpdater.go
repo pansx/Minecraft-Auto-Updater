@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -347,6 +348,15 @@ func ToSlashFilelist(fileList *map[string]string) *map[string]string {
 	return &slashFileList
 }
 
+//LaunchGameLauncher 不翻译了
+func LaunchGameLauncher() {
+	fmt.Println("正在启动游戏启动器")
+	cmd := exec.Command("java", "-jar", "launcher.jar")
+	cmd.Dir = "./game"
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
 //AutoUpdate 全自动更新模式
 func AutoUpdate(repair bool) {
 	var newUpdateInfo updateInfo
@@ -580,24 +590,22 @@ func main() {
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 {
-		if os.Args[1] == "--help" {
+		switch os.Args[1] {
+		case "--help":
 			fmt.Println("--help    获取帮助\n--init    初次制作更新包\n--pack    制作更新包\n--repair  游戏文件修复模式\n不附加参数即为自动模式")
-		}
-		if os.Args[1] == "--pack" {
+		case "--pack":
 			Pack(false)
-		}
-		if os.Args[1] == "--init" {
+		case "--init":
 			Pack(true)
-		}
-		if os.Args[1] == "--repair" {
+		case "--repair":
 			Repair()
-		}
-		if os.Args[1] == "--debug" {
-			AutoUpdate(true)
+		case "--debug":
+			LaunchGameLauncher()
+		default:
+			fmt.Println("未知参数:", os.Args[1])
+			fmt.Println("附加--help参数以获取帮助")
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
-	fmt.Println("未知参数:", os.Args[1])
-	fmt.Println("附加--help参数以获取帮助")
-	os.Exit(1)
 }
