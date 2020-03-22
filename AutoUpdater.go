@@ -350,11 +350,14 @@ func ToSlashFilelist(fileList *map[string]string) *map[string]string {
 
 //LaunchGameLauncher 不翻译了
 func LaunchGameLauncher() {
-	fmt.Println("正在启动游戏启动器")
+	fmt.Println("正在启动游戏启动器\n请不要关闭这个窗口")
 	cmd := exec.Command("java", "-jar", "launcher.jar")
 	cmd.Dir = "./game"
 	//cmd.Stdout = os.Stdout
-	cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("启动失败，你可能没安装java")
+	}
 }
 
 //AutoUpdate 全自动更新模式
@@ -408,25 +411,21 @@ func AutoUpdate(repair bool) {
 			IgnoreFileInFileList(&newUpdateInfo.IgnoreList, []*map[string]string{surp, lack}, true)
 		}
 		for k := range *surp {
-			fmt.Println("多余文件：" + k)
+			//fmt.Println("多余文件：" + k)
 			fn := filepath.Join("rubbish", filepath.Base(k))
 			if IsFileOrDirectoryExists(fn) {
 				os.Remove(fn)
 			}
 			os.Rename(k, fn)
-			fmt.Println("已移动至：" + fn)
+			//fmt.Println("已移动至：" + fn)
 		}
-		if len(*lack) < 100 {
-			for k := range *lack {
-				fmt.Println("缺失文件：" + k)
-			}
-		} else {
-			fmt.Printf("缺失文件数：%d\n", len(*lack))
-		}
+		fmt.Printf("多余文件数:%d\n", len(*surp))
+		fmt.Printf("缺失文件数：%d\n", len(*lack))
 		//下载并更新文件
 		nFile := len(*lack)          //需下载文件数
 		limitor := make(chan int, 8) //限制了最多同时下载八个文件
 		signal := make(chan int)
+		hashToShow := make(chan string)
 		for k, v := range *lack {
 			go func(path, hash string) {
 				limitor <- 0 //阻塞
@@ -442,14 +441,16 @@ func AutoUpdate(repair bool) {
 					if !ok {
 						os.Remove(path)
 						os.Remove(filepath.Join("download", hash+".zip"))
-						fmt.Println("下载或解压失败，重试中：" + hash)
+						//fmt.Println("下载或解压失败，重试中：" + hash)
 					} else {
-						fmt.Println("下载和解压成功" + hash)
+						//fmt.Println("下载和解压成功" + hash)
 						signal <- 0
+						hashToShow <- hash
 					}
 					if try > 5 {
-						fmt.Println("下载或解压失败，超过最大重试次数：" + hash)
+						//fmt.Println("下载或解压失败，超过最大重试次数：" + hash)
 						signal <- 1
+						hashToShow <- hash
 					}
 				}
 			}(k, v)
@@ -467,9 +468,11 @@ func AutoUpdate(repair bool) {
 			} else {
 				failed++
 			}
-			fmt.Printf("已完成%d/%d\n", len(*lack)-nFile, len(*lack))
+			h := <-hashToShow
+			fmt.Fprintf(os.Stdout, "已完成[%v/%v]:%v\r", len(*lack)-nFile, len(*lack), h)
 			if nFile == 0 {
 				close(signal)
+				fmt.Println("")
 			}
 		}
 		close(limitor)
@@ -524,19 +527,21 @@ func Pack(init bool) {
 	os.RemoveAll(filepath.Join("package", "download_surp"))
 	os.MkdirAll(filepath.Join("package", "download_surp"), os.ModePerm)
 	nFiles := len(*surp)
+	nFilesTotal := nFiles
 	if nFiles != 0 {
-		c := make(chan int)
+		c := make(chan string)
 		for k, v := range *surp {
 			go func(path, hash string) {
 				Zip(path, filepath.Join("package", "download_surp", hash+".zip"))
-				fmt.Println("已压缩增量部分：" + path)
-				c <- 0
+				c <- path
 			}(k, v)
 		}
-		for range c {
+		for p := range c {
 			nFiles--
+			fmt.Fprintf(os.Stdout, "增量压缩中[%v/%v]:%v\r", nFilesTotal-nFiles, nFilesTotal, p)
 			if nFiles == 0 {
 				close(c)
+				fmt.Println("")
 			}
 		}
 	}
@@ -545,18 +550,20 @@ func Pack(init bool) {
 	WriteStringToFile(filepath.Join("package", "file_list.json"), string(fileListJSON))
 	fmt.Println("已写入文件列表")
 	nFiles = len(*fileList)
-	c := make(chan int)
+	nFilesTotal = nFiles
+	c := make(chan string)
 	for k, v := range *fileList {
 		go func(path, hash string) {
 			Zip(path, filepath.Join("package", "download", hash+".zip"))
-			fmt.Println("已压缩：" + path)
-			c <- 0
+			c <- path
 		}(k, v)
 	}
-	for range c {
+	for p := range c {
 		nFiles--
+		fmt.Fprintf(os.Stdout, "全量压缩中[%v/%v]:%v\r", nFilesTotal-nFiles, nFilesTotal, p)
 		if nFiles == 0 {
 			close(c)
+			fmt.Println("")
 		}
 	}
 	fmt.Println("制包完毕，请上传更新后的文件\n你可以选择删除原来的包后上传全量包以节省空间，也可以上传增量包以节省上传时间")
@@ -568,7 +575,7 @@ func Repair() {
 }
 
 func main() {
-	fmt.Println("Minecraft自动更新器启动")
+	fmt.Println("======Minecraft自动更新器======")
 	requiredDir := []string{"game", "rubbish", "download"}
 	for _, rDirName := range requiredDir {
 		if !IsFileOrDirectoryExists(rDirName) {
