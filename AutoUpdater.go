@@ -350,13 +350,14 @@ func ToSlashFilelist(fileList *map[string]string) *map[string]string {
 
 //LaunchGameLauncher 不翻译了
 func LaunchGameLauncher() {
-	fmt.Println("正在启动游戏启动器")
+	fmt.Println("正在启动游戏启动器，请不要关闭更新器窗口")
 	cmd := exec.Command("java", "-jar", "launcher.jar")
 	cmd.Dir = "./game"
 	//cmd.Stdout = os.Stdout
 	err := cmd.Start()
 	if err != nil {
 		fmt.Println("启动失败，你可能没安装java")
+		time.Sleep(60 * time.Second)
 	}
 }
 
@@ -386,10 +387,10 @@ func AutoUpdate(repair bool) {
 		if repair {
 			fmt.Println("修复模式，忽略版本差异")
 		}
-		fmt.Printf("当前版本%d\n最新版本%d\n开始更新\n", localUpdateInfo.GameVersion, newUpdateInfo.GameVersion)
-		fmt.Println("获取本地文件列表中")
+		fmt.Printf("当前版本:%d 最新版本:%d\n", localUpdateInfo.GameVersion, newUpdateInfo.GameVersion)
+		//fmt.Println("获取本地文件列表中")
 		localFileList := GetFileList("game")
-		fmt.Println("获取最新文件列表中")
+		//fmt.Println("获取最新文件列表中")
 		fileListJSON := ReadStringFromURL(resourceURL + "file_list.json")
 		/*替换分隔符，现在用系统的自带方法，并强制规定json文件里都用slash(/)
 		if runtime.GOOS == "windows" {
@@ -405,7 +406,7 @@ func AutoUpdate(repair bool) {
 		}*/
 		newFileListUnformated := GetFileListFromJSON(fileListJSON)
 		newFileList := NormcaseFilelist(newFileListUnformated) //规范化
-		fmt.Println("对比文件差异中")
+		//fmt.Println("对比文件差异中")
 		surp, lack := CompareFileList(localFileList, newFileList)
 		if !repair {
 			IgnoreFileInFileList(&newUpdateInfo.IgnoreList, []*map[string]string{surp, lack}, true)
@@ -419,11 +420,10 @@ func AutoUpdate(repair bool) {
 			os.Rename(k, fn)
 			//fmt.Println("已移动至：" + fn)
 		}
-		fmt.Printf("多余文件数:%d\n", len(*surp))
-		fmt.Printf("缺失文件数：%d\n", len(*lack))
+		fmt.Printf("多余文件数:%d 缺失文件数:%d\n", len(*surp), len(*lack))
 		//下载并更新文件
-		nFile := len(*lack)          //需下载文件数
-		limitor := make(chan int, 8) //限制了最多同时下载八个文件
+		nFile := len(*lack)           //需下载文件数
+		limitor := make(chan int, 64) //限制了最多同时下载64个文件
 		signal := make(chan int)
 		hashToShow := make(chan string)
 		for k, v := range *lack {
@@ -476,16 +476,17 @@ func AutoUpdate(repair bool) {
 			}
 		}
 		close(limitor)
-		fmt.Printf("更新完毕，%d成功，%d失败\n", succeed, failed)
+		fmt.Printf("成功:%d 失败:%d\n", succeed, failed)
 		if failed == 0 {
 			WriteStringToFile("update_info.json", newUpdateInfo.String())
+			fmt.Printf("更新成功\n")
 			LaunchGameLauncher()
 			return
 		}
 		fmt.Println("更新失败，请重新运行更新器")
 		time.Sleep(60 * time.Second)
 	} else {
-		fmt.Println("已是最新版，如需修复游戏文件请附加参数--repair")
+		fmt.Println("已是最新版")
 		LaunchGameLauncher()
 	}
 }
@@ -583,7 +584,7 @@ func main() {
 		}
 	}
 	if len(os.Args) == 1 {
-		fmt.Println("自动模式\n如需知晓更多功能请附加参数--help")
+		//fmt.Println("自动模式\n如需知晓更多功能请附加参数--help")
 		AutoUpdate(false)
 		os.Exit(0)
 	}
@@ -598,7 +599,7 @@ func main() {
 		case "--repair":
 			Repair()
 		case "--debug":
-			LaunchGameLauncher()
+			return
 		default:
 			fmt.Println("未知参数:", os.Args[1])
 			fmt.Println("附加--help参数以获取帮助")
