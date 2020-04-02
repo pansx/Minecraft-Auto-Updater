@@ -351,7 +351,7 @@ func ToSlashFilelist(fileList *map[string]string) *map[string]string {
 //LaunchGameLauncher 不翻译了
 func LaunchGameLauncher() {
 	fmt.Println("正在启动游戏启动器，请不要关闭更新器窗口")
-	cmd := exec.Command("java", "-jar", "launcher.jar")
+	cmd := exec.Command("java", "-jar", "Launcher.jar")
 	cmd.Dir = "./game"
 	//cmd.Stdout = os.Stdout
 	err := cmd.Start()
