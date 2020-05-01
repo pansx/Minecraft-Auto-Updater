@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/jroimartin/gocui"
 )
 
 const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"
@@ -460,6 +462,7 @@ func AutoUpdate(repair bool, output io.Writer) {
 		}
 		succeed := 0 //统计结果
 		failed := 0
+		_, isView := output.(*gocui.View)
 		for sig := range signal { //等待下载完成
 			nFile--
 			<-limitor
@@ -469,10 +472,16 @@ func AutoUpdate(repair bool, output io.Writer) {
 				failed++
 			}
 			h := <-hashToShow
-			fmt.Fprintf(output, "已完成[%v/%v]:%v\r", len(*lack)-nFile, len(*lack), h)
+			if isView && ((len(*lack)-nFile)%int(float32(len(*lack))*0.1) == 0) {
+				fmt.Fprintf(output, "已完成[%v/%v]:%v\n", len(*lack)-nFile, len(*lack), h)
+			} else {
+				fmt.Fprintf(output, "已完成[%v/%v]:%v\r", len(*lack)-nFile, len(*lack), h)
+			}
 			if nFile == 0 {
 				close(signal)
-				fmt.Fprintln(output, "")
+				if !isView {
+					fmt.Fprintln(output, "")
+				}
 			}
 		}
 		close(limitor)

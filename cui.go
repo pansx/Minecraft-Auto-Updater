@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jroimartin/gocui"
 )
@@ -52,8 +53,16 @@ func autoUpdateCUI(g *gocui.Gui, v *gocui.View) error {
 	notice, _ := g.View("notice")
 	notice.Clear()
 	notice.Title = "控制台输出"
-	AutoUpdate(false, notice)
+	go AutoUpdate(false, notice)
+	go updateCUI(g)
 	return nil
+}
+
+func updateCUI(g *gocui.Gui) {
+	for true {
+		time.Sleep(time.Millisecond * 100)
+		g.Update(func(gg *gocui.Gui) error { return nil })
+	}
 }
 
 func cui() {
