@@ -349,33 +349,33 @@ func ToSlashFilelist(fileList *map[string]string) *map[string]string {
 }
 
 //LaunchGameLauncher 不翻译了
-func LaunchGameLauncher() {
-	fmt.Println("正在启动游戏启动器，请不要关闭更新器窗口")
+func LaunchGameLauncher(output io.Writer) {
+	fmt.Fprintln(output, "正在启动游戏启动器，请不要关闭更新器窗口")
 	cmd := exec.Command("java", "-jar", "Launcher.jar")
 	cmd.Dir = "./game"
 	//cmd.Stdout = os.Stdout
 	err := cmd.Start()
 	if err != nil {
-		fmt.Println("启动失败，你可能没安装java")
+		fmt.Fprintln(output, "启动失败，你可能没安装java")
 		time.Sleep(60 * time.Second)
 	}
 }
 
 //AutoUpdate 全自动更新模式
-func AutoUpdate(repair bool) {
+func AutoUpdate(repair bool, output io.Writer) {
 	var newUpdateInfo updateInfo
 	var localUpdateInfo updateInfo
-	fmt.Println("正在获取版本信息")
+	fmt.Fprintln(output, "正在获取版本信息")
 	err := newUpdateInfo.LoadFromJSON(ReadStringFromURL(resourceURL + "update_info.json"))
 	if err != nil {
-		fmt.Println("网络异常或更新器版本过旧")
+		fmt.Fprintln(output, "网络异常或更新器版本过旧")
 		os.Exit(1)
 	}
 	if IsFileOrDirectoryExists("update_info.json") {
 		err = localUpdateInfo.LoadFromJSON(ReadStringFromFile("update_info.json"))
 		if err != nil {
-			fmt.Println("更新信息文件可能损坏\n请删除update_info.json")
-			fmt.Println(err)
+			fmt.Fprintln(output, "更新信息文件可能损坏\n请删除update_info.json")
+			fmt.Fprintln(output, err)
 			if !repair {
 				os.Exit(1)
 			}
@@ -385,9 +385,9 @@ func AutoUpdate(repair bool) {
 	}
 	if localUpdateInfo.GameVersion < newUpdateInfo.GameVersion || repair { //版本旧了的话就更新
 		if repair {
-			fmt.Println("修复模式，忽略版本差异")
+			fmt.Fprintln(output, "修复模式，忽略版本差异")
 		}
-		fmt.Printf("当前版本:%d 最新版本:%d\n", localUpdateInfo.GameVersion, newUpdateInfo.GameVersion)
+		fmt.Fprintf(output, "当前版本:%d 最新版本:%d\n", localUpdateInfo.GameVersion, newUpdateInfo.GameVersion)
 		//fmt.Println("获取本地文件列表中")
 		localFileList := GetFileList("game")
 		//fmt.Println("获取最新文件列表中")
@@ -420,7 +420,7 @@ func AutoUpdate(repair bool) {
 			os.Rename(k, fn)
 			//fmt.Println("已移动至：" + fn)
 		}
-		fmt.Printf("多余文件数:%d 缺失文件数:%d\n", len(*surp), len(*lack))
+		fmt.Fprintf(output, "多余文件数:%d 缺失文件数:%d\n", len(*surp), len(*lack))
 		//下载并更新文件
 		nFile := len(*lack)           //需下载文件数
 		limitor := make(chan int, 64) //限制了最多同时下载64个文件
@@ -469,25 +469,25 @@ func AutoUpdate(repair bool) {
 				failed++
 			}
 			h := <-hashToShow
-			fmt.Fprintf(os.Stdout, "已完成[%v/%v]:%v\r", len(*lack)-nFile, len(*lack), h)
+			fmt.Fprintf(output, "已完成[%v/%v]:%v\r", len(*lack)-nFile, len(*lack), h)
 			if nFile == 0 {
 				close(signal)
-				fmt.Println("")
+				fmt.Fprintln(output, "")
 			}
 		}
 		close(limitor)
-		fmt.Printf("成功:%d 失败:%d\n", succeed, failed)
+		fmt.Fprintf(output, "成功:%d 失败:%d\n", succeed, failed)
 		if failed == 0 {
 			WriteStringToFile("update_info.json", newUpdateInfo.String())
-			fmt.Printf("更新成功\n")
-			LaunchGameLauncher()
+			fmt.Fprintf(output, "更新成功\n")
+			LaunchGameLauncher(output)
 			return
 		}
-		fmt.Println("更新失败，请重新运行更新器")
+		fmt.Fprintln(output, "更新失败，请重新运行更新器")
 		time.Sleep(60 * time.Second)
 	} else {
-		fmt.Println("已是最新版")
-		LaunchGameLauncher()
+		fmt.Fprintln(output, "已是最新版")
+		LaunchGameLauncher(output)
 	}
 }
 
@@ -572,7 +572,7 @@ func Pack(init bool) {
 
 //Repair 游戏文件修复
 func Repair() {
-	AutoUpdate(true)
+	AutoUpdate(true, os.Stdout)
 }
 
 func main() {
@@ -585,7 +585,8 @@ func main() {
 	}
 	if len(os.Args) == 1 {
 		//fmt.Println("自动模式\n如需知晓更多功能请附加参数--help")
-		AutoUpdate(false)
+		//AutoUpdate(false, os.Stdout)
+		cui()
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 {
@@ -599,7 +600,7 @@ func main() {
 		case "--repair":
 			Repair()
 		case "--debug":
-			return
+			cui()
 		default:
 			fmt.Println("未知参数:", os.Args[1])
 			fmt.Println("附加--help参数以获取帮助")

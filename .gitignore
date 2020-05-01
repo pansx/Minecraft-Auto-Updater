@@ -3,3 +3,6 @@
 !build.bat
 !LICENSE
 !README.md
+!cui.go
+!go.mod
+!go.sum
