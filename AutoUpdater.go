@@ -433,16 +433,24 @@ func AutoUpdate(repair bool, output io.Writer) {
 				limitor <- 0 //阻塞
 				ok := false  //标记是否通过hash校验
 				try := 0     //已尝试次数
+				conflictSuffix := ""
 				for !ok {
-					if !IsFileOrDirectoryExists(filepath.Join("download", hash+".zip")) {
-						DownLoadFile(resourceURL+"download/"+hash+".zip", filepath.Join("download", hash+".zip"))
+					if !IsFileOrDirectoryExists(filepath.Join("download", hash+".zip"+conflictSuffix)) {
+						DownLoadFile(resourceURL+"download/"+hash+".zip"+conflictSuffix, filepath.Join("download", hash+".zip"+conflictSuffix))
 					}
-					Unzip(filepath.Join("download", hash+".zip"), filepath.Dir(path))
+					Unzip(filepath.Join("download", hash+".zip"+conflictSuffix), filepath.Dir(path))
 					ok = GetHash(path) == hash
 					try++
 					if !ok {
-						os.Remove(path)
-						os.Remove(filepath.Join("download", hash+".zip"))
+						conflictSuffix += ".conflict"
+						/*
+							if !IsFileOrDirectoryExists(path) {
+								conflictSuffix += ".conflict"
+							} else {
+								os.Remove(path)
+							}
+							os.Remove(filepath.Join("download", hash+".zip"+conflictSuffix))
+						*/
 						//fmt.Println("下载或解压失败，重试中：" + hash)
 					} else {
 						//fmt.Println("下载和解压成功" + hash)
@@ -450,8 +458,9 @@ func AutoUpdate(repair bool, output io.Writer) {
 						hashToShow <- hash
 						return
 					}
-					if try > 5 {
+					if try > 15 {
 						//fmt.Println("下载或解压失败，超过最大重试次数：" + hash)
+						fmt.Println("文件更新超过最大重试次数：" + path)
 						signal <- 1
 						hashToShow <- hash
 						return
@@ -535,6 +544,7 @@ func Pack(init bool) {
 	oldFileList := GetFileListFromJSON(ReadStringFromURL(resourceURL + "file_list.json"))      //服务器上的文件列表
 	oldFileList = ToSlashFilelist(oldFileList)
 	IgnoreFileInFileList(&newUpdateInfo.PackageIgnoreList, []*map[string]string{fileList, oldFileList}, false) //有一些文件不打包
+	/*由于文件重名问题，暂时停用增量压缩功能
 	surp, _ := CompareFileList(fileList, oldFileList)                                                          //多出来的文件要另外打包
 	os.RemoveAll(filepath.Join("package", "download_surp"))
 	os.MkdirAll(filepath.Join("package", "download_surp"), os.ModePerm)
@@ -550,32 +560,43 @@ func Pack(init bool) {
 		}
 		for p := range c {
 			nFiles--
-			fmt.Fprintf(os.Stdout, "增量压缩中[%v/%v]:%v\r", nFilesTotal-nFiles, nFilesTotal, p)
+			fmt.Fprintf(os.Stdout, "增量压缩中[%v/%v]:%v\n", nFilesTotal-nFiles, nFilesTotal, p)
 			if nFiles == 0 {
 				close(c)
 				fmt.Println("")
 			}
 		}
 	}
+	*/
 	os.Remove(filepath.Join("package", "file_list.json"))
 	fileListJSON, _ := json.Marshal(ToSlashFilelist(fileList))
 	WriteStringToFile(filepath.Join("package", "file_list.json"), string(fileListJSON))
 	fmt.Println("已写入文件列表")
-	nFiles = len(*fileList)
-	nFilesTotal = nFiles
+	nFiles := len(*fileList)
+	nFilesTotal := nFiles
 	c := make(chan string)
+	limitor := make(chan int)
 	for k, v := range *fileList {
-		go func(path, hash string) {
-			Zip(path, filepath.Join("package", "download", hash+".zip"))
+		go func(path, hash string, limitor chan int) {
+			<-limitor
+			destZip := filepath.Join("package", "download", hash+".zip")
+			for IsFileOrDirectoryExists(destZip) { //解决同名文件冲突
+				fmt.Printf("遇到冲突，尝试解决中...%s\n", destZip)
+				destZip += ".conflict"
+			}
+			Zip(path, destZip)
 			c <- path
-		}(k, v)
+		}(k, v, limitor)
 	}
+	limitor <- 0
 	for p := range c {
 		nFiles--
-		fmt.Fprintf(os.Stdout, "全量压缩中[%v/%v]:%v\r", nFilesTotal-nFiles, nFilesTotal, p)
+		fmt.Fprintf(os.Stdout, "全量压缩中[%v/%v]:%v\n", nFilesTotal-nFiles, nFilesTotal, p)
 		if nFiles == 0 {
 			close(c)
 			fmt.Println("")
+		} else {
+			limitor <- 0
 		}
 	}
 	fmt.Println("制包完毕，请上传更新后的文件\n你可以选择删除原来的包后上传全量包以节省空间，也可以上传增量包以节省上传时间")
