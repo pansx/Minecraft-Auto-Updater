@@ -448,11 +448,13 @@ func AutoUpdate(repair bool, output io.Writer) {
 						//fmt.Println("下载和解压成功" + hash)
 						signal <- 0
 						hashToShow <- hash
+						return
 					}
 					if try > 5 {
 						//fmt.Println("下载或解压失败，超过最大重试次数：" + hash)
 						signal <- 1
 						hashToShow <- hash
+						return
 					}
 				}
 			}(k, v)
@@ -594,9 +596,9 @@ func main() {
 	}
 	if len(os.Args) == 1 {
 		//fmt.Println("自动模式\n如需知晓更多功能请附加参数--help")
-		//AutoUpdate(false, os.Stdout)
-		cui()
-		os.Exit(0)
+		AutoUpdate(false, os.Stdout)
+		//cui()
+		//os.Exit(0)
 	}
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -609,7 +611,7 @@ func main() {
 		case "--repair":
 			Repair()
 		case "--debug":
-			cui()
+			//cui()
 		default:
 			fmt.Println("未知参数:", os.Args[1])
 			fmt.Println("附加--help参数以获取帮助")
