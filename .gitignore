@@ -6,3 +6,5 @@
 !cui.go
 !go.mod
 !go.sum
+src/net/pansx/downloader/downloader.go
+src/net/pansx/utils/pansxUtils.go

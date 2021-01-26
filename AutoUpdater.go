@@ -19,24 +19,12 @@ import (
 
 const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"
 
-//IsFileOrDirectoryExists 造轮子
-func IsFileOrDirectoryExists(path string) bool {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	return false
-}
-
 //Zip 用于压缩文件srcFile可以是单文件也可以是目录
 func Zip(srcFile string, destZip string) error {
-	zipfile, err := os.Create(destZip)
+	archive, err := createZip(destZip)
 	if err != nil {
 		return err
 	}
-	defer zipfile.Close()
-
-	archive := zip.NewWriter(zipfile)
 	defer archive.Close()
 
 	filepath.Walk(srcFile, func(path string, info os.FileInfo, err error) error {
@@ -84,6 +72,17 @@ func Zip(srcFile string, destZip string) error {
 	return err
 }
 
+func createZip(destZip string) (*zip.Writer, error) {
+	zipfile, err := os.Create(destZip)
+	if err != nil {
+		return nil, err
+	}
+	defer zipfile.Close()
+
+	archive := zip.NewWriter(zipfile)
+	return archive, err
+}
+
 //Unzip 解压缩文件，相对路径模式
 func Unzip(zipFile string, destDir string) error {
 	zipReader, err := zip.OpenReader(zipFile)
@@ -122,15 +121,6 @@ func Unzip(zipFile string, destDir string) error {
 	return nil
 }
 
-//GetHash 获取一个文件的sha1
-func GetHash(file string) string {
-	sha := sha1.New()
-	f, _ := os.Open(file)
-	defer f.Close()
-	io.Copy(sha, f)
-	return strings.ToLower(fmt.Sprintf("%X", sha.Sum(nil)))
-}
-
 //GetFileList 返回一个文件夹下所有文件的hash，文件的相对路径为key，hash为value
 func GetFileList(path string) *map[string]string {
 	nFile := 0
@@ -157,53 +147,6 @@ func GetFileList(path string) *map[string]string {
 		}
 	}
 	return &m
-}
-
-//DownLoadFile 下载文件
-func DownLoadFile(url, destDir string) error {
-	if IsFileOrDirectoryExists(destDir) {
-		return nil
-	}
-	destFile, err := os.Create(destDir)
-	defer destFile.Close()
-	if err != nil {
-		return err
-	}
-	var res *http.Response
-	res, err = http.Get(url)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(destFile, res.Body)
-	return err
-}
-
-//DownLoadFileAndCheck 下载文件并校验hash是否相符
-func DownLoadFileAndCheck(url, destDir, hash string) error {
-	//log.Println("下载文件并检查 url:" + url + " dest:" + destDir)
-	hash = strings.ToLower(hash)
-	if IsFileOrDirectoryExists(destDir) {
-		if hash == GetHash(destDir) {
-			//log.Println("文件校验通过 url:" + url + " dest:" + destDir)
-			return nil
-		}
-		os.Remove(destDir)
-		//log.Println("文件校验不通过，重新下载 url:" + url + " dest:" + destDir)
-	}
-	for i := 0; ; i++ {
-		err := DownLoadFile(url, destDir)
-		if err == nil {
-			if hash == GetHash(destDir) {
-				//log.Println("文件校验通过 url:" + url + " dest:" + destDir)
-				return nil
-			}
-		} else {
-			if i > 10 { //最多尝试十次
-				//log.Println("超过最大重试次数 url:" + url + " dest:" + destDir)
-				return err
-			}
-		}
-	}
 }
 
 type updateInfo struct {
