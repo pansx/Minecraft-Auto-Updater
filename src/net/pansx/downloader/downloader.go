@@ -3,50 +3,56 @@ package main
 import (
 	"../utils"
 	"fmt"
+	"github.com/shettyh/threadpool"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 )
-import "time"
 
 type Downloader struct {
-	destDir     string
-	jobs        chan string
-	results     chan int
-	workerNum   int
-	queueLength int
+	workerNum int
+	destDir   string
+	results   []*threadpool.Future
+	pool      *threadpool.ThreadPool
+}
+
+type DownloadCallable struct {
+	url     string
+	method  string
+	hash    string
+	destDir string
 }
 
 func New(destDir string) Downloader {
 	d := Downloader{}
-	d.destDir = destDir
-	d.jobs = make(chan string, 100)
-	d.results = make(chan int, 100)
 	d.workerNum = 8
-	d.queueLength = 0
-	d.initWorker()
+	d.destDir = destDir
+	d.pool = threadpool.NewThreadPool(d.workerNum, 9999999)
 	return d
 }
 
-func (d *Downloader) initWorker() {
-	for w := 1; w <= d.workerNum; w++ {
-		go d.downloadWorker(w)
+func (d *DownloadCallable) Call() interface{} {
+	//Do task
+	result := 1
+	if d.method == "downloadAndCheck" {
+		err := d.DownLoadFileAndCheck(d.url, d.hash)
+		if err != nil {
+			result = 0
+		}
+	} else if d.method == "downlod" {
+		err := d.DownLoadFile(d.url)
+		if err != nil {
+			result = 0
+		}
 	}
-}
-
-func (d *Downloader) downloadWorker(id int) {
-	for j := range d.jobs {
-		fmt.Println("downloadWorker", id, "processing job", j)
-		time.Sleep(time.Second)
-		d.results <- 1
-	}
+	return result
 }
 
 func main() {
 
 	// 为了使用 downloadWorker 线程池并且收集他们的结果，我们需要 2 个通道。
-	downloader := New("123")
+	downloader := New("R:\\pansx\\OneDrive\\project\\Java\\Minecraft-Auto-Updater\\dist")
 	// 这里我们发送 9 个 `jobs`，然后 `close` 这些通道
 	// 来表示这些就是所有的任务了。
 	urls := []string{"123"}
@@ -63,24 +69,29 @@ func main() {
 }
 
 func (d *Downloader) setDownloadQueue(urls []string) {
-	d.results = make(chan int, len(urls))
 	for _, url := range urls {
-		d.jobs <- url
-		d.queueLength += 1
+		callable := &DownloadCallable{url: url, method: "download"}
+		future, err := d.pool.ExecuteFuture(callable)
+		if err != nil {
+			fmt.Println(err)
+		}
+		d.results = append(d.results, future)
 	}
-	close(d.jobs)
 }
 func (d *Downloader) startDownloadUntilGetResult() []int {
 	var ints []int
-	for i := 0; i < d.queueLength; i++ {
-		res := <-d.results
-		ints = append(ints, res)
+	for _, result := range d.results {
+		get := result.Get()
+		ints = append(
+			ints,
+			get.(int),
+		)
 	}
 	return ints
 }
 
 //DownLoadFile 下载文件
-func (d *Downloader) DownLoadFile(url string) error {
+func (d *DownloadCallable) DownLoadFile(url string) error {
 	if utils.IsFileOrDirectoryExists(d.destDir) {
 		return nil
 	}
@@ -99,7 +110,7 @@ func (d *Downloader) DownLoadFile(url string) error {
 }
 
 //DownLoadFileAndCheck 下载文件并校验hash是否相符
-func (d *Downloader) DownLoadFileAndCheck(url, hash string) error {
+func (d *DownloadCallable) DownLoadFileAndCheck(url, hash string) error {
 	//log.Println("下载文件并检查 url:" + url + " dest:" + destDir)
 	hash = strings.ToLower(hash)
 	if utils.IsFileOrDirectoryExists(d.destDir) {
