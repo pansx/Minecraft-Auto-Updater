@@ -15,8 +15,10 @@ const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"
 
 func Pack(init bool) {
 	fmt.Println("开始根据当前目录下的game文件夹制作更新包")
-	os.RemoveAll(filepath.Join("package", "download"))
-	os.MkdirAll(filepath.Join("package", "download"), os.ModePerm)
+	packagePath := "package"
+	updateInfoJsonFile := "update_info.json"
+	os.RemoveAll(filepath.Join(packagePath, "download"))
+	os.MkdirAll(filepath.Join(packagePath, "download"), os.ModePerm)
 	fileList := utils.GetFileHashList("game")
 	fmt.Println("已获得文件列表")
 	if init {
@@ -29,45 +31,29 @@ func Pack(init bool) {
 		}
 		initUpdateInfo.LoadFileInfoByMap(fileList)
 		initUpdInfoJSON, _ := json.Marshal(initUpdateInfo)
-		utils.WriteStringToFile(filepath.Join("package", "update_info.json"), string(initUpdInfoJSON))
+		utils.WriteStringToFile(filepath.Join(packagePath, updateInfoJsonFile), string(initUpdInfoJSON))
 		println("初始化已完成，请将完善后的update_info.json和file_list.json上传到文件服务器，然后再进行打包")
 		return
 	}
 	var newUpdateInfo updateInfo.UpdateInfo
-	err := newUpdateInfo.LoadFromJSON(utils.ReadStringFromURL(resourceURL + "update_info.json"))
+	err := newUpdateInfo.LoadFromJSON(utils.ReadStringFromFile(filepath.Join(packagePath, updateInfoJsonFile)))
+	url := resourceURL + updateInfoJsonFile
+	if err != nil {
+		fmt.Println("读取本地信息也失败,使用默认地址")
+	} else {
+		url = newUpdateInfo.Mirror + updateInfoJsonFile
+		fmt.Println("使用镜像:", url)
+	}
+
+	err = newUpdateInfo.LoadFromJSON(utils.ReadStringFromURL(url))
 	if err != nil {
 		fmt.Println("读取更新信息时出错，是不是忘了初始化文件服务器？输入--init以获取初始化所需的文件，输入--help获取更多帮助")
-		return
+		fmt.Println("仅读取本地信息")
 	}
 	newUpdateInfo.GameVersion++ //自动修改游戏版本
-	_ = os.Remove(filepath.Join("package", "update_info.json"))
+	_ = os.Remove(filepath.Join(packagePath, updateInfoJsonFile))
 	newUpdateInfoJSON, _ := json.Marshal(newUpdateInfo)
-	utils.WriteStringToFile(filepath.Join("package", "update_info.json"), string(newUpdateInfoJSON)) //写入修改了游戏版本的更新信息文件
-	//IgnoreFileInFileList(&newUpdateInfo.PackageIgnoreList, []*map[string]string{fileList, oldFileList}, false) //有一些文件不打包
-	/*由于文件重名问题，暂时停用增量压缩功能
-	surp, _ := CompareFileList(fileList, oldFileList)                                                          //多出来的文件要另外打包
-	os.RemoveAll(filepath.Join("package", "download_surp"))
-	os.MkdirAll(filepath.Join("package", "download_surp"), os.ModePerm)
-	nFiles := len(*surp)
-	nFilesTotal := nFiles
-	if nFiles != 0 {
-		c := make(chan string)
-		for k, v := range *surp {
-			go func(path, hash string) {
-				Zip(path, filepath.Join("package", "download_surp", hash+".zip"))
-				c <- path
-			}(k, v)
-		}
-		for p := range c {
-			nFiles--
-			fmt.Fprintf(os.Stdout, "增量压缩中[%v/%v]:%v\n", nFilesTotal-nFiles, nFilesTotal, p)
-			if nFiles == 0 {
-				close(c)
-				fmt.Println("")
-			}
-		}
-	}
-	*/
+	utils.WriteStringToFile(filepath.Join(packagePath, updateInfoJsonFile), string(newUpdateInfoJSON)) //写入修改了游戏版本的更新信息文件
 	nFiles := len(newUpdateInfo.FileInfoList)
 	nFilesTotal := nFiles
 	c := make(chan string)
@@ -75,7 +61,7 @@ func Pack(init bool) {
 	for _, info := range newUpdateInfo.FileInfoList {
 		go func(path, name string, limitor chan int) {
 			<-limitor
-			destZip := filepath.Join("package", "download", name+".zip")
+			destZip := filepath.Join(packagePath, "download", name)
 			for utils.IsFileOrDirectoryExists(destZip) { //解决同名文件冲突
 				fmt.Printf("遇到冲突，尝试解决中...%s\n", destZip)
 				destZip += ".conflict"
@@ -154,16 +140,6 @@ func Zip(srcFile string, destZip string) error {
 		if err != nil {
 			return err
 		}
-		/*
-			替换分隔符，现在用自带方法
-			sig := "/"
-			if runtime.GOOS == "windows" {
-				sig = `\`
-			}
-			header.Name = strings.TrimPrefix(path, filepath.Dir(srcFile)+sig)
-		*/
-		//header.Name = strings.TrimPrefix(path, filepath.FromSlash(filepath.ToSlash(filepath.Dir(srcFile)+"/")))
-		//header.Name = path
 		if info.IsDir() {
 			//header.Name += sig
 			header.Name = filepath.FromSlash(filepath.ToSlash(header.Name + "/"))

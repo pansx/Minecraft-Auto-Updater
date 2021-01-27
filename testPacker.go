@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	packer.Pack(true)
+	packer.Pack(false)
 
 }
