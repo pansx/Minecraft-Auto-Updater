@@ -1,11 +1,11 @@
 package main
 
 import (
-	"../utils"
 	"fmt"
 	"github.com/shettyh/threadpool"
 	"io"
 	"net/http"
+	"net/pansx/utils"
 	"os"
 	"strings"
 )

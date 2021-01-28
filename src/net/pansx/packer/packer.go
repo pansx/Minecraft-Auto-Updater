@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"testing"
 )
 
 const resourceURL = "http://mcupd.sorazone.com/"
@@ -132,6 +133,10 @@ func UploadAll() {
 		panic(err)
 	}
 	fmt.Println("进度:", len(fi), "/", len(fi), 100, "%")
+}
+
+func TestUpload(t *testing.T) {
+	UploadAll()
 }
 
 //Zip 用于压缩文件srcFile可以是单文件也可以是目录
