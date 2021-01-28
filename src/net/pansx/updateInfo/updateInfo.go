@@ -19,6 +19,12 @@ type FileInfo struct {
 	Hash string `json:"hash"`
 }
 
+func New(path string) *UpdateInfo {
+	u := &UpdateInfo{}
+	u.LoadFromJSON(utils.ReadStringFromFile(path))
+	return u
+}
+
 //返回的是json形式的表达
 func (ui *UpdateInfo) String() string {
 

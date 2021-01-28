@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/pansx/updateInfo"
 	"net/pansx/utils"
 	"os"
+	"path"
 	"path/filepath"
 )
 
-const resourceURL = "https://minecraft-updater.oss-cn-shanghai.aliyuncs.com/"
+const resourceURL = "http://mcupd.sorazone.com/"
+const packagePath = "package"
+const updateInfoJsonFile = "update_info.json"
 
 func Pack(init bool) {
 	fmt.Println("开始根据当前目录下的game文件夹制作更新包")
-	packagePath := "package"
-	updateInfoJsonFile := "update_info.json"
 	os.RemoveAll(filepath.Join(packagePath, "download"))
 	os.MkdirAll(filepath.Join(packagePath, "download"), os.ModePerm)
 	fileList := utils.GetFileHashList("game")
@@ -115,6 +117,21 @@ func IgnoreFileInFileList(ignoreList *[]string, fileLists []*map[string]string, 
 			}
 		}
 	}
+}
+
+func UploadAll() {
+	ftpInfo := New("ftp.json")
+	ui := updateInfo.New(path.Join(packagePath, updateInfoJsonFile))
+	fi := ui.FileInfoList
+	for i, fileInfo := range fi {
+		fmt.Println("进度:", i, "/", len(fi), int(math.Floor(float64(i*100)/float64(len(fi)))), "%")
+		ftpInfo.upload(fileInfo)
+	}
+	err := ftpInfo.renameToDownload()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("进度:", len(fi), "/", len(fi), 100, "%")
 }
 
 //Zip 用于压缩文件srcFile可以是单文件也可以是目录

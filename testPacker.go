@@ -1,10 +1,9 @@
 package main
 
-import (
-	"net/pansx/packer"
-)
+import "net/pansx/packer"
 
 func main() {
-	packer.Pack(false)
+	//packer.Pack(false)
+	packer.UploadAll()
 
 }
