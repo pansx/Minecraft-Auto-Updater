@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/pansx/fileInfo"
 	"net/pansx/updateInfo"
 	"net/pansx/utils"
 	"os"
@@ -19,6 +20,11 @@ const packagePath = "package"
 const updateInfoJsonFile = "update_info.json"
 
 func Pack(init bool) {
+	exists := utils.IsFileOrDirectoryExists("game")
+	if !exists {
+		fmt.Println("当前目录看上去并不是打包器可工作的目录,请将打包器放到game文件夹旁")
+		return
+	}
 	fmt.Println("开始根据当前目录下的game文件夹制作更新包")
 	os.RemoveAll(filepath.Join(packagePath, "download"))
 	os.MkdirAll(filepath.Join(packagePath, "download"), os.ModePerm)
@@ -30,7 +36,7 @@ func Pack(init bool) {
 			Mirror:            resourceURL,
 			IgnoreList:        []string{},
 			PackageIgnoreList: []string{},
-			FileInfoList:      []*updateInfo.FileInfo{},
+			FileInfoList:      []*fileInfo.FileInfo{},
 		}
 		initUpdateInfo.LoadFileInfoByMap(fileList)
 		initUpdInfoJSON, _ := json.Marshal(initUpdateInfo)

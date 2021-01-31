@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/jlaffaye/ftp"
 	"log"
-	"net/pansx/updateInfo"
+	"net/pansx/fileInfo"
 	"net/pansx/utils"
 	"os"
 	"path"
@@ -46,7 +46,7 @@ func (f *FtpInfo) connect() *ftp.ServerConn {
 	return c
 }
 
-func (f *FtpInfo) upload(i *updateInfo.FileInfo) {
+func (f *FtpInfo) upload(i *fileInfo.FileInfo) {
 	srcFile := path.Join(f.PackagePath, i.Name)
 	data, err := os.Open(srcFile)
 	stat, _ := data.Stat()

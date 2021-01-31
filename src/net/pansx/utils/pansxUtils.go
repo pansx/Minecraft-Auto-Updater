@@ -11,7 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+var httpClient = &http.Client{
+	Timeout: time.Second * 10,
+}
 
 //IsFileOrDirectoryExists 造轮子
 func IsFileOrDirectoryExists(path string) bool {
@@ -49,7 +54,7 @@ func ReadStringFromFile(inFile string) string {
 
 //ReadStringFromURL 从URL中读取string
 func ReadStringFromURL(url string) string {
-	r, e := http.Get(url)
+	r, e := httpClient.Get(url)
 	if e != nil {
 		return ""
 	}
@@ -108,7 +113,7 @@ func WriteStringToFile(file, s string) error {
 }
 
 //Unzip 解压缩文件，相对路径模式
-func Unzip(zipFile string, destDir string) error {
+func Unzip(zipFile string, destFile string) error {
 	zipReader, err := zip.OpenReader(zipFile)
 	if err != nil {
 		return err
@@ -116,7 +121,7 @@ func Unzip(zipFile string, destDir string) error {
 	defer zipReader.Close()
 
 	for _, f := range zipReader.File {
-		fpath := filepath.Join(destDir, f.Name)
+		fpath := filepath.Join(destFile, f.Name)
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(fpath, os.ModePerm)
 		} else {
@@ -143,4 +148,12 @@ func Unzip(zipFile string, destDir string) error {
 		}
 	}
 	return nil
+}
+
+func MakeDirAll(requiredDir []string) {
+	for _, rDirName := range requiredDir {
+		if !IsFileOrDirectoryExists(rDirName) {
+			_ = os.Mkdir(rDirName, os.ModePerm)
+		}
+	}
 }

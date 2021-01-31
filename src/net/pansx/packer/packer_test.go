@@ -3,7 +3,7 @@ package packer
 import "testing"
 
 func TestPacker(t *testing.T) {
-	Pack(true)
+	Pack(false)
 }
 func TestUploadAll(t *testing.T) {
 	UploadAll()
