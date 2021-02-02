@@ -8,3 +8,8 @@ func TestPacker(t *testing.T) {
 func TestUploadAll(t *testing.T) {
 	UploadAll()
 }
+
+func TestFtpInfo_RenameToDownload(t *testing.T) {
+	ftpInfo := New("ftp.json")
+	ftpInfo.RenameToDownload()
+}

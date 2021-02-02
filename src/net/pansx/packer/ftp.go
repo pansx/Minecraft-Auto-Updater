@@ -46,23 +46,54 @@ func (f *FtpInfo) connect() *ftp.ServerConn {
 	return c
 }
 
-func (f *FtpInfo) upload(i *fileInfo.FileInfo) {
+func (f *FtpInfo) UploadByFileInfo(i *fileInfo.FileInfo) {
 	srcFile := path.Join(f.PackagePath, i.Name)
-	data, err := os.Open(srcFile)
-	stat, _ := data.Stat()
 	destPath := path.Join("/", f.TempPath, i.Name)
-	fmt.Println("上传:", srcFile, "=>", destPath, stat.Size())
-	err = f.connection.Stor(destPath, data)
+	err := f.Upload(srcFile, destPath)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (f *FtpInfo) renameToDownload() error {
-	downloadPath := "/download"
-	err := f.connection.Rename(downloadPath, downloadPath+"-"+utils.GenUUID())
-	if err == nil {
-		err = f.connection.Rename(f.TempPath, downloadPath)
+func (f *FtpInfo) Upload(srcFile string, destPath string) error {
+	data, err := os.Open(srcFile)
+	if err != nil {
+		panic(err)
 	}
+	stat, _ := data.Stat()
+	fmt.Println("上传:", srcFile, "=>", destPath, stat.Size())
+	err = f.connection.Stor(destPath, data)
+	return err
+}
+
+func (f *FtpInfo) RenameToDownload() error {
+	downloadPath := "/download"
+	if f.TempPath == downloadPath {
+		fmt.Println("临时文件夹和下载文件夹一致,跳过移动")
+		return nil
+	}
+	err := f.connection.Rename(downloadPath, downloadPath+"-"+utils.GenUUID())
+	_ = f.connection.MakeDir(downloadPath)
+	err = f.connection.Rename(f.TempPath, downloadPath)
+	if err == nil {
+		fmt.Println("重命名到正式目录成功!")
+		return nil
+	}
+
+	list, err := f.connection.List(f.TempPath)
+	if err == nil {
+		for i, entry := range list {
+			name := entry.Name
+			from := f.TempPath + "/" + name
+			to := downloadPath + "/" + name
+			err := f.connection.Delete(to)
+			err = f.connection.Rename(from, to)
+			fmt.Println("移动文件到正式目录:", from, "=>", to, i, "/", len(list))
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	f.connection.RemoveDir(f.TempPath)
 	return err
 }

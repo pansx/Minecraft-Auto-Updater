@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/shettyh/threadpool"
 	"io"
+	"log"
 	"net/http"
 	"net/pansx/fileInfo"
 	"net/pansx/utils"
@@ -31,7 +32,7 @@ type DownloadCallable struct {
 
 func New(destDir string, host string) Downloader {
 	d := Downloader{}
-	d.workerNum = 32
+	d.workerNum = 8
 	d.destDir = destDir
 	d.host = host
 	d.pool = threadpool.NewThreadPool(d.workerNum, 9999999)
@@ -53,7 +54,7 @@ func (d *DownloadCallable) Call() interface{} {
 			fmt.Println(err)
 			result = 0
 		} else {
-			fmt.Println("下载完毕:", d.downloadFile)
+			fmt.Println("下载完毕:", d.destFile)
 		}
 	}
 	return result
@@ -63,7 +64,7 @@ func (d *Downloader) SetDownloadQueue(fiList []*fileInfo.FileInfo) {
 	for _, fi := range fiList {
 		callable := &DownloadCallable{
 			url:          d.host + "download/" + fi.Name,
-			method:       "download",
+			method:       "downloadAndCheck",
 			downloadFile: path.Join(d.destDir, fi.Name),
 			destFile:     fi.GetDeployPath(),
 			hash:         fi.Hash,
@@ -89,21 +90,50 @@ func (d *Downloader) StartDownloadUntilGetResult() []int {
 
 //DownLoadFile 下载文件
 func (d *DownloadCallable) DownLoadFile(url string) error {
-	if utils.IsFileOrDirectoryExists(d.downloadFile) {
-		return nil
+	remoteLength, err := d.getRemoteLength(url)
+	if !d.isFileExistAndValid(url, remoteLength) {
+		res, err := http.Get(url)
+		if err != nil || res.StatusCode != http.StatusOK {
+			return errors.New("下载失败!" + url)
+		}
+		destFile, err := os.Create(d.downloadFile)
+		defer destFile.Close()
+		_, err = io.Copy(destFile, res.Body)
+		stat, _ := destFile.Stat()
+		if stat.Size() != remoteLength {
+			fmt.Println("下载的文件与远程声称的文件大小不一致!重试", stat.Size(), remoteLength, url)
+			_ = destFile.Close()
+			_ = os.Remove(d.downloadFile)
+			return d.DownLoadFile(url)
+		}
+		_ = destFile.Close()
 	}
-
-	res, err := http.Get(url)
-
-	if err != nil || res.StatusCode != 200 {
-		return errors.New("下载失败!" + url)
-	}
-	destFile, err := os.Create(d.downloadFile)
-	defer destFile.Close()
-	_, err = io.Copy(destFile, res.Body)
-	_ = destFile.Close()
 	err = utils.Unzip(d.downloadFile, d.destFile)
 	return err
+}
+
+func (d *DownloadCallable) getRemoteLength(url string) (int64, error) {
+	head, err := http.Head(url)
+	if head == nil || head.ContentLength == 0 || head.StatusCode != http.StatusOK {
+		err = errors.New("无法获得文件信息,下载失败!" + url)
+	}
+	remoteLength := head.ContentLength
+	return remoteLength, err
+}
+
+func (d *DownloadCallable) isFileExistAndValid(url string, remoteLength int64) bool {
+	if utils.IsFileOrDirectoryExists(d.downloadFile) {
+		f, err := os.Open(d.downloadFile)
+		stat, err := f.Stat()
+		if stat.Size() == remoteLength {
+			return true
+		}
+		if err != nil {
+			fmt.Println("检测到服务端文件和本地已存在的文件大小不一致,重新获取...", url)
+			_ = os.Remove(d.downloadFile)
+		}
+	}
+	return false
 }
 
 //DownLoadFileAndCheck 下载文件并校验hash是否相符
@@ -116,12 +146,12 @@ func (d *DownloadCallable) DownLoadFileAndCheck(url, hash string) error {
 			return nil
 		}
 		os.Remove(d.destFile)
-		//log.Println("文件校验不通过，重新下载 url:" + url + " dest:" + downloadFile)
+		log.Println("文件校验不通过，重新下载 url:" + url + " dest:" + url)
 	}
 	for i := 0; ; i++ {
 		err := d.DownLoadFile(url)
 		if err == nil {
-			if hash == utils.GetHash(d.downloadFile) {
+			if hash == utils.GetHash(d.destFile) {
 				//log.Println("文件校验通过 url:" + url + " dest:" + downloadFile)
 				return nil
 			}

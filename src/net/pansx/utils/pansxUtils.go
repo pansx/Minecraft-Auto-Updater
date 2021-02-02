@@ -9,7 +9,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -116,9 +118,17 @@ func WriteStringToFile(file, s string) error {
 func Unzip(zipFile string, destFile string) error {
 	zipReader, err := zip.OpenReader(zipFile)
 	if err != nil {
+		cwd, _ := os.Getwd()
+		fmt.Println(destFile, "存在问题,解压失败:", path.Join(cwd, zipFile))
 		return err
 	}
 	defer zipReader.Close()
+
+	//当传入的是具体文件时,解压到文件夹而不是解压到名字是文件名的文件夹...
+	match, _ := regexp.MatchString("\\.[^/\\\\]+$", destFile)
+	if match {
+		destFile = filepath.Dir(destFile)
+	}
 
 	for _, f := range zipReader.File {
 		fpath := filepath.Join(destFile, f.Name)

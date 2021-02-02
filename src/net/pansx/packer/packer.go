@@ -3,6 +3,7 @@ package packer
 import (
 	"archive/zip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"testing"
 )
 
 const resourceURL = "http://mcupd.sorazone.com/"
@@ -128,21 +128,22 @@ func IgnoreFileInFileList(ignoreList *[]string, fileLists []*map[string]string, 
 
 func UploadAll() {
 	ftpInfo := New("ftp.json")
-	ui := updateInfo.New(path.Join(packagePath, updateInfoJsonFile))
+	updateInfoJsonFilePath := path.Join(packagePath, updateInfoJsonFile)
+	ui := updateInfo.New(updateInfoJsonFilePath)
 	fi := ui.FileInfoList
+	err := ftpInfo.Upload(updateInfoJsonFilePath, updateInfoJsonFile)
+	if err != nil {
+		panic(errors.New("无法上传更新信息!请检查更新信息文件:" + updateInfoJsonFilePath))
+	}
 	for i, fileInfo := range fi {
 		fmt.Println("进度:", i, "/", len(fi), int(math.Floor(float64(i*100)/float64(len(fi)))), "%")
-		ftpInfo.upload(fileInfo)
+		ftpInfo.UploadByFileInfo(fileInfo)
 	}
-	err := ftpInfo.renameToDownload()
+	err = ftpInfo.RenameToDownload()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("进度:", len(fi), "/", len(fi), 100, "%")
-}
-
-func TestUpload(t *testing.T) {
-	UploadAll()
 }
 
 //Zip 用于压缩文件srcFile可以是单文件也可以是目录
