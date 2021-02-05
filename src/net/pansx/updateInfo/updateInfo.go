@@ -2,7 +2,6 @@ package updateInfo
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/pansx/downloader"
 	"net/pansx/fileInfo"
 	"net/pansx/utils"
@@ -59,10 +58,14 @@ func (ui *UpdateInfo) LoadFileInfoByMap(m map[string]string) {
 		})
 	}
 }
-func (ui *UpdateInfo) CheckAndDownloadAll(destPath string) error {
+func (ui *UpdateInfo) CheckAndDownloadAll(destPath string) []int {
 	d := downloader.New(destPath, ui.Mirror)
-	d.SetDownloadQueue(ui.FileInfoList)
+	infos := []*fileInfo.FileInfo{{
+		Name: "ui.zip",
+		Path: "upd/ui/ui.exe",
+		Hash: "ca025c954216ff02eb4bf37fc0df5159753e40ee",
+	}}
+	d.SetDownloadQueue(append(infos, ui.FileInfoList...))
 	result := d.StartDownloadUntilGetResult()
-	fmt.Println(result)
-	return nil
+	return result
 }

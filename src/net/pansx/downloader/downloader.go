@@ -10,6 +10,7 @@ import (
 	"net/pansx/fileInfo"
 	"net/pansx/utils"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 )
@@ -30,7 +31,10 @@ type DownloadCallable struct {
 	destFile     string
 }
 
+var progress = 0
+
 func New(destDir string, host string) Downloader {
+	_ = exec.Command("cmd", "/c", "title", fmt.Sprintf("mcupd-%p", &progress)).Run()
 	d := Downloader{}
 	d.workerNum = 8
 	d.destDir = destDir
@@ -48,6 +52,7 @@ func (d *DownloadCallable) Call() interface{} {
 		if err != nil {
 			result = 0
 		}
+		d.execUi()
 	} else if d.method == "download" {
 		err := d.DownLoadFile(d.url)
 		if err != nil {
@@ -78,12 +83,15 @@ func (d *Downloader) SetDownloadQueue(fiList []*fileInfo.FileInfo) {
 }
 func (d *Downloader) StartDownloadUntilGetResult() []int {
 	var ints []int
+
 	for _, result := range d.results {
 		get := result.Get()
+		progress++
 		ints = append(
 			ints,
 			get.(int),
 		)
+		fmt.Println("多线程下载进度:", progress, "/", len(d.results))
 	}
 	return ints
 }
@@ -110,6 +118,13 @@ func (d *DownloadCallable) DownLoadFile(url string) error {
 	}
 	err = utils.Unzip(d.downloadFile, d.destFile)
 	return err
+}
+
+func (d *DownloadCallable) execUi() {
+	uiPath := "upd/ui/ui.exe"
+	if d.destFile == uiPath {
+		_ = exec.Command(uiPath).Start()
+	}
 }
 
 func (d *DownloadCallable) getRemoteLength(url string) (int64, error) {
@@ -141,7 +156,8 @@ func (d *DownloadCallable) DownLoadFileAndCheck(url, hash string) error {
 	//log.Println("下载文件并检查 url:" + url + " dest:" + downloadFile)
 	hash = strings.ToLower(hash)
 	if utils.IsFileOrDirectoryExists(d.destFile) {
-		if hash == utils.GetHash(d.destFile) {
+		getHash := utils.GetHash(d.destFile)
+		if hash == getHash {
 			//log.Println("文件校验通过 url:" + url + " dest:" + downloadFile)
 			return nil
 		}

@@ -34,9 +34,15 @@ func main() {
 			info = downloaded
 		}
 	}
+
 	fmt.Println("下载开始:", info.GameVersion, "此版本的文件数量:", len(info.FileInfoList))
-	err := info.CheckAndDownloadAll(downloadDir)
-	if err != nil {
-		fmt.Println(err)
+	result := info.CheckAndDownloadAll(downloadDir)
+	errorCount := 0
+	for _, i := range result {
+		if i != 1 {
+			errorCount++
+		}
 	}
+	fmt.Println("下载完成:", len(result), "失败数量:", errorCount, "/", len(info.FileInfoList))
+
 }

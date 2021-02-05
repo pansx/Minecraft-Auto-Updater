@@ -11,7 +11,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -114,52 +113,62 @@ func WriteStringToFile(file, s string) error {
 	return nil
 }
 
-//Unzip 解压缩文件，相对路径模式
-func Unzip(zipFile string, destFile string) error {
-	zipReader, err := zip.OpenReader(zipFile)
+//Unzip 解压缩文件，相对路径模式,destFile必须精确到文件而不是路径
+func Unzip(src string, dest string) error {
+	dest = path.Dir(dest)
+	var filenames []string
+
+	r, err := zip.OpenReader(src)
 	if err != nil {
-		cwd, _ := os.Getwd()
-		fmt.Println(destFile, "存在问题,解压失败:", path.Join(cwd, zipFile))
 		return err
 	}
-	defer zipReader.Close()
+	defer r.Close()
 
-	//当传入的是具体文件时,解压到文件夹而不是解压到名字是文件名的文件夹...
-	match, _ := regexp.MatchString("\\.[^/\\\\]+$", destFile)
-	if match {
-		destFile = filepath.Dir(destFile)
-	}
+	for _, f := range r.File {
 
-	for _, f := range zipReader.File {
-		fpath := filepath.Join(destFile, f.Name)
+		// Store filename/path for returning and using later on
+		fpath := filepath.Join(dest, f.Name)
+
+		// Check for ZipSlip. More Info: http://bit.ly/2MsjAWE
+		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("%s: illegal file path", fpath)
+		}
+
+		filenames = append(filenames, fpath)
+
 		if f.FileInfo().IsDir() {
+			// Make Folder
 			os.MkdirAll(fpath, os.ModePerm)
-		} else {
-			if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
-				return err
-			}
+			continue
+		}
 
-			inFile, err := f.Open()
-			if err != nil {
-				return err
-			}
-			defer inFile.Close()
+		// Make File
+		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+			return err
+		}
 
-			outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-			if err != nil {
-				return err
-			}
-			defer outFile.Close()
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return err
+		}
 
-			_, err = io.Copy(outFile, inFile)
-			if err != nil {
-				return err
-			}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(outFile, rc)
+
+		// Close the file without defer to close before next iteration of loop
+		outFile.Close()
+		rc.Close()
+
+		if err != nil {
+			return err
 		}
 	}
 	return nil
 }
-
 func MakeDirAll(requiredDir []string) {
 	for _, rDirName := range requiredDir {
 		if !IsFileOrDirectoryExists(rDirName) {
