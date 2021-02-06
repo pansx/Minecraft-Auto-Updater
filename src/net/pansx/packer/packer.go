@@ -28,8 +28,7 @@ func Pack(init bool) {
 	fmt.Println("开始根据当前目录下的game文件夹制作更新包")
 	os.RemoveAll(filepath.Join(packagePath, "download"))
 	os.MkdirAll(filepath.Join(packagePath, "download"), os.ModePerm)
-	fileList := utils.GetFileHashList("game")
-	fmt.Println("已获得文件列表")
+
 	if init {
 		initUpdateInfo := updateInfo.UpdateInfo{
 			GameVersion:       0,
@@ -38,7 +37,7 @@ func Pack(init bool) {
 			PackageIgnoreList: []string{},
 			FileInfoList:      []*fileInfo.FileInfo{},
 		}
-		initUpdateInfo.LoadFileInfoByMap(fileList)
+		initUpdateInfo.MakeNewFileInfo()
 		initUpdInfoJSON, _ := json.Marshal(initUpdateInfo)
 		utils.WriteStringToFile(filepath.Join(packagePath, updateInfoJsonFile), string(initUpdInfoJSON))
 		println("初始化已完成，请将完善后的update_info.json和file_list.json上传到文件服务器，然后再进行打包")
@@ -60,6 +59,7 @@ func Pack(init bool) {
 		fmt.Println("仅读取本地信息")
 	}
 	newUpdateInfo.GameVersion++ //自动修改游戏版本
+	newUpdateInfo.MakeNewFileInfo()
 	_ = os.Remove(filepath.Join(packagePath, updateInfoJsonFile))
 	newUpdateInfoJSON, _ := json.Marshal(newUpdateInfo)
 	utils.WriteStringToFile(filepath.Join(packagePath, updateInfoJsonFile), string(newUpdateInfoJSON)) //写入修改了游戏版本的更新信息文件
@@ -92,6 +92,7 @@ func Pack(init bool) {
 		}
 	}
 	fmt.Println("制包完毕，请上传更新后的文件\n你可以选择删除原来的包后上传全量包以节省空间，也可以上传增量包以节省上传时间")
+
 }
 
 //IgnoreFileInFileList 用于排除不需要检测更新的文件或文件夹
@@ -135,6 +136,11 @@ func UploadAll() {
 	if err != nil {
 		panic(errors.New("无法上传更新信息!请检查更新信息文件:" + updateInfoJsonFilePath))
 	}
+	err = ftpInfo.Upload("package/ui/ui.zip", ftpInfo.TempPath+"/ui.zip")
+	if err != nil {
+		panic(errors.New("无法上传ui!请检查更新信息文件:" + "package/ui/ui.zip"))
+	}
+
 	for i, fileInfo := range fi {
 		fmt.Println("进度:", i, "/", len(fi), int(math.Floor(float64(i*100)/float64(len(fi)))), "%")
 		ftpInfo.UploadByFileInfo(fileInfo)

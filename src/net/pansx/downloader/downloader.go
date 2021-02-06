@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -123,7 +124,13 @@ func (d *DownloadCallable) DownLoadFile(url string) error {
 func (d *DownloadCallable) execUi() {
 	uiPath := "upd/ui/ui.exe"
 	if d.destFile == uiPath {
-		_ = exec.Command(uiPath).Start()
+		command := exec.Command("./ui.exe")
+		abs, _ := filepath.Abs(path.Dir(uiPath))
+		command.Dir = abs
+		err := command.Start()
+		if err != nil {
+			fmt.Println("启动ui失败...")
+		}
 	}
 }
 

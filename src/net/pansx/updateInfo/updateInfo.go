@@ -2,6 +2,7 @@ package updateInfo
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/pansx/downloader"
 	"net/pansx/fileInfo"
 	"net/pansx/utils"
@@ -49,14 +50,25 @@ func (ui *UpdateInfo) LoadFromJSON(s string) error {
 }
 
 func (ui *UpdateInfo) LoadFileInfoByMap(m map[string]string) {
-	ui.FileInfoList = []*fileInfo.FileInfo{}
+	var fileInfoList []*fileInfo.FileInfo
 	for s, v := range m {
-		ui.FileInfoList = append(ui.FileInfoList, &fileInfo.FileInfo{
-			Name: utils.GenUUID() + ".zip",
+		fileInfoList = append(fileInfoList, &fileInfo.FileInfo{
+			Name: ui.getName(s, v),
 			Path: s,
 			Hash: v,
 		})
 	}
+	ui.FileInfoList = fileInfoList
+}
+
+func (ui *UpdateInfo) getName(path, hash string) string {
+	for _, info := range ui.FileInfoList {
+		if info.Path == path && hash == hash {
+			return info.Name
+		}
+	}
+	newName := utils.GenUUID() + ".zip"
+	return newName
 }
 func (ui *UpdateInfo) CheckAndDownloadAll(destPath string) []int {
 	d := downloader.New(destPath, ui.Mirror)
@@ -68,4 +80,10 @@ func (ui *UpdateInfo) CheckAndDownloadAll(destPath string) []int {
 	d.SetDownloadQueue(append(infos, ui.FileInfoList...))
 	result := d.StartDownloadUntilGetResult()
 	return result
+}
+func (ui *UpdateInfo) MakeNewFileInfo() {
+	fmt.Println("开始获得文件列表,这可能需要几分钟...")
+	fileList := utils.GetFileHashList("game")
+	ui.LoadFileInfoByMap(fileList)
+	fmt.Println("已获得文件列表")
 }

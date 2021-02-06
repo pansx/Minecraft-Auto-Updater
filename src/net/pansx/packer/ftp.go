@@ -62,6 +62,13 @@ func (f *FtpInfo) Upload(srcFile string, destPath string) error {
 	}
 	stat, _ := data.Stat()
 	fmt.Println("上传:", srcFile, "=>", destPath, stat.Size())
+	size, err := f.connection.FileSize(destPath)
+	if err == nil {
+		if stat.Size() == size {
+			fmt.Println("文件和远端大小相同,跳过")
+			return nil
+		}
+	}
 	err = f.connection.Stor(destPath, data)
 	return err
 }

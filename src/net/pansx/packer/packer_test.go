@@ -4,6 +4,7 @@ import "testing"
 
 func TestPacker(t *testing.T) {
 	Pack(false)
+	UploadAll()
 }
 func TestUploadAll(t *testing.T) {
 	UploadAll()
